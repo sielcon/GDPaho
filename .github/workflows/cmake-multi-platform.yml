@@ -1,0 +1,92 @@
+name: Build and Test
+
+on:
+  push:
+    branches:
+      - godot-3
+  pull_request:
+    branches:
+      - godot-3
+
+jobs:
+  build:
+
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+        with:
+          submodules: true  # Clone submodules
+
+      - name: Set up dependencies
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libssl-dev cmake scons
+
+      - name: Set up dependencies
+        if: matrix.os == 'macos-latest'
+        run: |
+          brew update
+          brew install openssl@3 cmake scons
+
+      - name: Set up dependencies
+        if: matrix.os == 'windows-latest'
+        run: |
+          choco install openssl
+          choco install cmake
+          choco install scons
+
+      - name: Build Paho C library
+        run: |
+          git clone https://github.com/eclipse/paho.mqtt.c.git
+          cd paho.mqtt.c
+          mkdir build
+          cd build
+          cmake .. -DPAHO_BUILD_SHARED=FALSE -DPAHO_BUILD_STATIC=TRUE -DPAHO_HIGH_PERFORMANCE=TRUE -DPAHO_WITH_SSL=TRUE -DPAHO_ENABLE_TESTING=FALSE -DCMAKE_BUILD_TYPE=Release -DCMAKE_POSITION_INDEPENDENT_CODE=ON
+          cmake --build . --target install --config "MinSizeRel"
+
+      - name: Build Paho C++ library
+        run: |
+          git clone https://github.com/eclipse/paho.mqtt.cpp.git
+          cd paho.mqtt.cpp
+          mkdir build
+          cd build
+          cmake .. -DPAHO_BUILD_SHARED=FALSE -DPAHO_BUILD_STATIC=TRUE -DPAHO_WITH_SSL=TRUE -DCMAKE_BUILD_TYPE=Release -DCMAKE_POSITION_INDEPENDENT_CODE=ON
+          cmake --build . --target install --config "MinSizeRel"
+
+      - name: Build the Godot project
+        run: |
+          if [ ${{ matrix.os }} == 'ubuntu-latest' ]; then
+            scons target=release;
+          elif [ ${{ matrix.os }} == 'macos-latest' ]; then
+            scons target=release;
+          elif [ ${{ matrix.os }} == 'windows-latest' ]; then
+            scons target=release paho_cpp="C:\\Program Files (x86)\\paho-mqtt-cpp\\lib" paho_c="C:\\Program Files (x86)\\Eclipse Paho C\\lib" ssl="C:\\Program Files\\OpenSSL-Win64\\lib\\VC\\static";
+          fi
+
+      - name: Archive build artifacts
+        if: matrix.os == 'windows-latest'
+        uses: actions/upload-artifact@v3
+        with:
+          name: windows-build
+          path: 'path\to\windows\build'
+
+      - name: Archive build artifacts
+        if: matrix.os == 'ubuntu-latest'
+        uses: actions/upload-artifact@v3
+        with:
+          name: linux-build
+          path: path/to/linux/build
+
+      - name: Archive build artifacts
+        if: matrix.os == 'macos-latest'
+        uses: actions/upload-artifact@v3
+        with:
+          name: macos-build
+          path: path/to/macos/build
