@@ -29,6 +29,7 @@ void GDPaho::_register_methods() {
 	// Methods
 	register_method("loop", &GDPaho::loop);
 	register_method("initialise", &GDPaho::initialise);
+	register_method("initialise_full_address", &GDPaho::initialise_full_address);
 	register_method("username_pw_set", &GDPaho::username_pw_set);
 	register_method("is_connected_to_broker", &GDPaho::is_connected_to_broker);
 	register_method("broker_connect", &GDPaho::connect);
@@ -122,8 +123,12 @@ void GDPaho::loop() {
 //###############################################################
 
 int GDPaho::initialise(const String p_id, const String p_host, const String p_port) {
+	return initialise_full_address(p_id, "tcp://" + p_host + ":" + p_port);
+}
+
+int GDPaho::initialise_full_address(const String p_id, const String p_full_address) {
 	try {
-		String m_connection_address = "tcp://" + p_host + ":" + p_port;
+		String m_connection_address = p_full_address;
 		m_wrapper = new PahoWrapper(*this, p_id.utf8().get_data(), m_connection_address.utf8().get_data());
 		return mqtt::ReasonCode::SUCCESS;
 	} catch (std::exception& p_exception) {
