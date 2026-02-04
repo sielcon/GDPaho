@@ -1,21 +1,21 @@
-name: Build and Test
+name: Build GDPaho addon libraries
 
 on:
   push:
-    branches:
-      - godot-3
-  pull_request:
-    branches:
-      - godot-3
+    tags:
+      - "v*"
 
 jobs:
   build:
 
     strategy:
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+        os: [ubuntu-latest, windows-latest]
 
     runs-on: ${{ matrix.os }}
+
+    permissions:
+      contents: write
 
     steps:
       - name: Checkout repository
@@ -28,12 +28,6 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y libssl-dev cmake scons
-
-      - name: Set up dependencies
-        if: matrix.os == 'macos-latest'
-        run: |
-          brew update
-          brew install openssl@3 cmake scons
 
       - name: Set up dependencies
         if: matrix.os == 'windows-latest'
@@ -60,33 +54,24 @@ jobs:
           cmake .. -DPAHO_BUILD_SHARED=FALSE -DPAHO_BUILD_STATIC=TRUE -DPAHO_WITH_SSL=TRUE -DCMAKE_BUILD_TYPE=Release -DCMAKE_POSITION_INDEPENDENT_CODE=ON
           cmake --build . --target install --config "MinSizeRel"
 
-      - name: Build the Godot project
+      - name: Build the Godot library
         run: |
-          if [ ${{ matrix.os }} == 'ubuntu-latest' ]; then
-            scons target=release;
-          elif [ ${{ matrix.os }} == 'macos-latest' ]; then
-            scons target=release;
-          elif [ ${{ matrix.os }} == 'windows-latest' ]; then
-            scons target=release paho_cpp="C:\\Program Files (x86)\\paho-mqtt-cpp\\lib" paho_c="C:\\Program Files (x86)\\Eclipse Paho C\\lib" ssl="C:\\Program Files\\OpenSSL-Win64\\lib\\VC\\static";
-          fi
+          cmake -DBUILD_GODOT_CPP=True -DCMAKE_BUILD_TYPE=Release . -B build
+          cmake --build build
 
-      - name: Archive build artifacts
-        if: matrix.os == 'windows-latest'
-        uses: actions/upload-artifact@v3
-        with:
-          name: windows-build
-          path: 'path\to\windows\build'
+      - name: Zip export
+        run: |
+          zip -r ${{ matrix.os }}.zip build
 
-      - name: Archive build artifacts
-        if: matrix.os == 'ubuntu-latest'
-        uses: actions/upload-artifact@v3
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
         with:
-          name: linux-build
-          path: path/to/linux/build
+          name: ${{ matrix.os }}.zip
+          path: ${{ matrix.os }}.zip
 
-      - name: Archive build artifacts
-        if: matrix.os == 'macos-latest'
-        uses: actions/upload-artifact@v3
+      - name: Attach binaries to release
+        uses: softprops/action-gh-release@v2
         with:
-          name: macos-build
-          path: path/to/macos/build
+          generate_release_notes: true
+          files: |
+            ${{ matrix.os }}.zip
